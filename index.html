@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Chat Application hew hew</title>
+</head>
+<body>
+    <div id="user-name">
+        Name: <strong></strong>
+    </div>
+    <hr>
+
+    <div id="connected">
+        Connected: <strong>1</strong><br>
+        Online:
+        <ol></ol>
+    </div>
+
+    <hr>
+
+    <div id="messages">
+        Messages: <br>
+        <ul></ul>
+    </div>
+
+    <div id="private-messages">
+        Private Messages: <br>
+        <ul></ul>
+    </div>
+
+    <hr>
+
+    <div id="private-message">
+        Private message: <br>
+        <input type="text" name="private-message-receiver" placeholder="Enter name ..."><br>
+        <input type="text" name="private-message" placeholder="Enter your message ..."><br>
+        <button id="send-private-message">Send Private Message</button>
+    </div>
+
+    <hr>
+
+    <input type="text" name="message" placeholder="Enter your message ..." autofocus><br>
+    <div id="users-typing-container"></div>
+    <button id="send-everyone">Send To everyone including you</button>
+    <button id="send-everyone-except-the-sender">Send To everyone except you</button>
+
+    <script type="text/javascript" src="/socket.io/socket.io.js"></script>
+    <script type="text/javascript" src="/jquery/dist/jquery.js"></script>
+    <script type="text/javascript">
+        var socket = io();
+
+        socket.on('connected', function (connected) {
+            console.log(connected);
+            $('#connected strong').text(Object.keys(connected).length);
+
+            var str = "";
+            for (var client_name in connected) {
+                str += "<li>"+client_name+"</li>";
+            }
+            $('#connected ol').html(str);
+        });
+
+        socket.on('show-username', function (client_name) {
+            $('#user-name strong').text(client_name);
+        });
+
+        socket.on('send-message', function (client_name, message) {
+            $('#messages ul').append('<li>'+client_name+": "+message+'</li>');
+        });
+
+        socket.on('on-typing', function (client_name) {
+            $('#users-typing-container').html("<p>"+client_name+" typing ...</p>");
+        });
+
+        socket.on('stop-typing', function (client_name) {
+            $('#users-typing-container').html("");
+        });
+
+        socket.on('send-private-message', function (sender, message) {
+            $('#private-messages ul').append("<li>"+sender+": "+message+"</li>");
+        });
+
+        var MessageApp = {
+            client_name: "",
+            on_typing_timer: "",
+
+            init: function () {
+                MessageApp.client_name = prompt("Enter your name: ");
+                socket.emit('register-client', MessageApp.client_name);
+
+                $(':input[name="message"]').keydown(MessageApp.onTyping);
+                $('#send-private-message').click(MessageApp.sendPrivateMessage);
+                $('#send-everyone').click(MessageApp.sendMessageToEveryone);
+                $('#send-everyone-except-the-sender').click(MessageApp.sendMessageToEveryoneExceptTheSender);
+            },
+
+            onTyping: function () {
+                socket.emit('on-typing-except-typer', MessageApp.client_name);
+
+                clearTimeout(MessageApp.timer);
+                MessageApp.timer = setTimeout(function () {
+                    socket.emit('stop-typing');
+                }, 1000);
+            },
+
+            sendPrivateMessage: function () {
+                var message = $(':input[name="private-message"]').val().trim();
+                if (message !== "") {
+                    var receiver = $(':input[name="private-message-receiver"]').val();
+                    socket.emit('send-private-message', MessageApp.client_name, receiver, message);
+
+                    $(':input[name="private-message-receiver"]').val("");
+                    $(':input[name="private-message"]').val("");
+                }
+            },
+
+            sendMessageToEveryone: function () {
+                var message = $(':input[name="message"]').val();
+                if (message !== "") {
+                    socket.emit('send-message-to-everyone', MessageApp.client_name, message);
+                    $(':input[name="message"]').val("");
+                }
+            },
+
+            sendMessageToEveryoneExceptTheSender: function () {
+                var message = $(':input[name="message"]').val();
+                if (message !== "") {
+                    socket.emit('send-message-to-everyone-except-me', MessageApp.client_name, message);
+                    $(':input[name="message"]').val("");
+                }
+            }
+        };
+
+        $(document).ready(MessageApp.init);
+    </script>
+</body>
+</html>
